@@ -1,0 +1,44 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Chart.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    app.kubernetes.io/component: {{ .Chart.Name }}
+    app.kubernetes.io/part-of: {{ .Values.deployment.metadata.labels.appKubernetesIoPartOf }}
+spec:
+  replicas: {{ .Values.deployment.replicas }}
+  revisionHistoryLimit: {{ .Values.deployment.revisionHistoryLimit }}
+  strategy:
+    type: {{ .Values.deployment.strategy.type }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      containers:
+        - image: {{ .Values.deployment.image }}
+          name: {{ .Chart.Name }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: {{ .Chart.Name }}
+              containerPort: {{ .Values.deployment.containerPort }}
+          volumeMounts:
+            - name: {{ .Values.deployment.volumeMounts.name }}
+              mountPath: {{ .Values.deployment.volumeMounts.mountPath }}
+              subPath: {{ .Values.deployment.volumeMounts.subPath }}
+      volumes:
+        - name: {{ .Values.deployment.volumeMounts.name }}
+          configMap:
+            name: {{ .Values.configMap.name }}
+      imagePullSecrets:
+        - name: {{ .Values.deployment.imagePullSecrets.name }}

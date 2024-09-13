@@ -1,0 +1,57 @@
+stages:
+  - deploy 
+
+variables:
+  VERSION: 1.0.${CI_PIPELINE_ID}
+
+deploy_staging:
+  stage: deploy
+  image:
+    name: "alpine/helm:3.15.2"
+  before_script:
+    - mkdir ~/.kube
+    - touch ~/.kube/config
+    - |
+      cat <<EOF >~/.kube/config
+      ---
+      apiVersion: v1
+      kind: Config
+      clusters:
+      - cluster:
+          certificate-authority-data: $CERT_AUTH_DATA
+          server: $SERVER
+        name: $CLUSTER_NAME
+      users:
+      - name: $CLUSTER_NAME
+        user:
+          token: $USER_TOKEN
+      contexts:
+      - context:
+          cluster: $CLUSTER_NAME
+          user: $CLUSTER_NAME
+        name: $CONTEXT_NAME
+      current-context: $CONTEXT_NAME
+      preferences: {}
+      EOF
+    - apk --update add jq  
+  script:
+    - helm package --version $VERSION --app-version $VERSION $NAMESPACE_HLM-chart 
+    - curl -u $NEXUS_USERNAME:$NEXUS_PASSWORD $NEXUS_URL_HELM --upload-file /builds/$NAMESPACE/$NAMESPACE_HLM-diploma/$NAMESPACE_HLM-$VERSION.tgz
+    - helm repo add nexus $NEXUS_URL_HELM --username $NEXUS_USERNAME --password $NEXUS_PASSWORD
+    - sleep 3
+    - helm repo update
+    - sleep 3
+    - BACKEND_LAST_VERSION_NUMBER=$(curl -u $NEXUS_USERNAME:$NEXUS_PASSWORD -X GET "$NEXUS_URL/service/rest/v1/search?repository=$NEXUS_REPO_BACKEND&sort=name&direction=desc" | jq -r '.items.[0].name' | sed 's/.\{4\}$//')
+    - echo $BACKEND_LAST_VERSION_NUMBER
+    - FRONTEND_LAST_VERSION_NUMBER=$(curl -u $NEXUS_USERNAME:$NEXUS_PASSWORD -X GET "$NEXUS_URL/service/rest/v1/search?repository=$NEXUS_REPO_FRONTEND&sort=name&direction=desc" | jq -r '.items.[0].name' | sed 's/.\{4\}$//')
+    - echo $FRONTEND_LAST_VERSION_NUMBER
+    - helm upgrade $NAMESPACE_HLM 
+        --install
+        --namespace $NAMESPACE_HLM
+        --create-namespace 
+        --set backend.secrets.docker.json=$DOCKER_TOKEN,frontend.secrets.docker.json=$DOCKER_TOKEN,backend.deployment.image=$CI_REGISTRY_IMAGE/$BACKEND_LAST_VERSION_NUMBER,frontend.deployment.image=$CI_REGISTRY_IMAGE/$FRONTEND_LAST_VERSION_NUMBER 
+        --version $VERSION 
+        --atomic 
+        --timeout 15m 
+        nexus/$NAMESPACE_HLM
+    - rm ~/.kube/config

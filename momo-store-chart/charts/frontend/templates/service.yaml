@@ -1,0 +1,17 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.ports.port }}
+      protocol: {{ .Values.service.ports.protocol }}
+      targetPort: {{ .Values.service.ports.targetPort }}
+  selector:
+    app: {{ .Chart.Name }}
+  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
+  externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy }}  
